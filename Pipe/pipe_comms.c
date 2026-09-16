@@ -47,6 +47,7 @@ int main()
     }
     else // 자식 프로세스 (Reader)
     {
+    #if 1
         // 사용하지 않는 쓰기 파이프 닫기
         close(pipe_fd[1]);
 
@@ -61,6 +62,17 @@ int main()
         } else {
             perror("read");
         }
+    #elif 0 // 비정상 동작
+
+    char buffer[BUFFER_SIZE];
+
+    while ((bytes_read = read(pipe_fd[0], buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[bytes_read] = '\0';
+        printf("[Child] 수신: %s\n", buffer);
+    }
+    printf("[Child] 모든 데이터 수신 완료!\n");
+
+    #endif
 
         // 읽기 파이프 닫기
         close(pipe_fd[0]);
