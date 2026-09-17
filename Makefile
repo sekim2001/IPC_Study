@@ -9,5 +9,14 @@ all: $(TARGETS)
 ipc_comms: ipc_comms.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
+pipe_comms: Pipe/pipe_comms.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+mq_comms: Message_Queue/mq_comms.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+shm_comms: Shared_Memory/shm_comms.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
 clean:
 	rm -f $(TARGETS)
