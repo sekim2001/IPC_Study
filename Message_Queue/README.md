@@ -97,12 +97,12 @@ __Message Queue TimeOut__
 + 타임 아웃 메시지 큐 동작 흐름 : 시각 조회 -> 목표 시각 연산 -> mq_timefreceive() 호출
     + 목표 시각 안에 메시지 __수신__ : 프로세스가 깨어나 데어터 버퍼에 메시지 복사 (반환값 : 읽은 바이트 수 >= 0)
     + 목표 시각 안에 메시지 __미수신__ : 커널 타이머 인터럽트 발생 (반환값: -1 / errno : ETIMEDOUT 설정)
-&ensp;&ensp;&ensp; 1. clock_gettime(CLOCK_REALTIME, &timeout);
-&ensp;&ensp;&ensp;&ensp; - CLOCK_REALTIME은 리눅스 시스템의 실제 시간(WALL-clock time) 의미
-&ensp;&ensp;&ensp;&ensp; - 함수 호출 시점의 시스템 현재 시각을 초(tv_sec)와 나노초(tv_nesc) 단위로 저장
-&ensp;&ensp;&ensp; 2. timeout.tv_sec += TIMEOUT;
-&ensp;&ensp;&ensp;&ensp; - 현재 시각의 초단위 시간을 더해 타임아웃으로 설정할 목표 절대 시각 설정
-&ensp;&ensp;&ensp; 3. mq_timedreceive(..., &timeout);
-&ensp;&ensp;&ensp;&ensp; - 요청 프로세스는 커널에 큐 읽기를 요청하며 대기(Sleep/Block)에 돌입
-&ensp;&ensp;&ensp;&ensp; - 메시지가 도착 시 타임아웃 시각에 도달하지 않아도 프로세스가 깨어나 메시지를 반환
-&ensp;&ensp;&ensp;&ensp; - 타임아웃 시각 초과 시 커널이 프로세스를 깨우고 -1을 반환
+&ensp;&ensp;&ensp; 1. clock_gettime(CLOCK_REALTIME, &timeout);<br>
+&ensp;&ensp;&ensp;&ensp; - CLOCK_REALTIME은 리눅스 시스템의 실제 시간(WALL-clock time) 의미<br>
+&ensp;&ensp;&ensp;&ensp; - 함수 호출 시점의 시스템 현재 시각을 초(tv_sec)와 나노초(tv_nesc) 단위로 저장<br>
+&ensp;&ensp;&ensp; 2. timeout.tv_sec += TIMEOUT;<br>
+&ensp;&ensp;&ensp;&ensp; - 현재 시각의 초단위 시간을 더해 타임아웃으로 설정할 목표 절대 시각 설정<br>
+&ensp;&ensp;&ensp; 3. mq_timedreceive(..., &timeout);<br>
+&ensp;&ensp;&ensp;&ensp; - 요청 프로세스는 커널에 큐 읽기를 요청하며 대기(Sleep/Block)에 돌입<br>
+&ensp;&ensp;&ensp;&ensp; - 메시지가 도착 시 타임아웃 시각에 도달하지 않아도 프로세스가 깨어나 메시지를 반환<br>
+&ensp;&ensp;&ensp;&ensp; - 타임아웃 시각 초과 시 커널이 프로세스를 깨우고 -1을 반환<br>
