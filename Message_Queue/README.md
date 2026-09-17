@@ -1,4 +1,4 @@
-__메시지 큐 속정 정의 구조체__
+## 메시지 큐 속정 정의 구조체
 ```
 struct mq_attr
 {
@@ -26,7 +26,7 @@ struct mq_attr
     + __사용__ : 백그라운드 로직을 계속 수행해야 할 때 (epoll, select 또는 mq_notify 와 함께 사용)
 
 ---
-__mq_open() 함수 인자__
+## mq_open() 함수 인자
 + __mqd_t mq_open(const char *name, int oflag);__ // 큐를 기존에 생성된 것을 열기만 할 때
 + __mqd_t mq_open(const char *name, int oflag, mode_t mode, struct mq_attr *attr);__ // O_CREAT 플래그를 넣어 새로 생성할 때 (가변 인자 형태)
 
@@ -50,36 +50,36 @@ __mq_open() 함수 인자__
 
 
 ---
-__Message Queue 설계 규칙__
-### 1. 메시지 구조체 안에 포인터 포함 불가
+## Message Queue 설계 규칙
+#### 1. 메시지 구조체 안에 포인터 포함 불가
 + IPC는 서로 다른 가상 메모리 주소 공간(Virtual Address Space)을 가진 프로세스 간 통신
 + 구조체에 포인트 사용 시 Segmentation Fault 발생 => 고정 크기 버퍼 사용
 
-### 2. 구조체 크기 <= mq_msgsize 
+#### 2. 구조체 크기 <= mq_msgsize 
 + mq_open()시 지정한 mq_msgsize 보다 큰 데이터를 mq_send()할 때 EMSGIZE 에러 발생
 + __TIP__ : mq_attr .mq_msgsize에 크기를 하드코딩 하기 보다는 sizeof(Packet)을 기준으로 설정
 
-### 3. 송신자와 수신자는 동일한 헤더 파일 공유
+#### 3. 송신자와 수신자는 동일한 헤더 파일 공유
 + 구조체 멤버의 순서나 자료형이 송신자와 수신자가 다르면 데이터가 깨지는 현상 발생
 + 송신자와 수신자에서 구조체를 선언하지 말고, 공통 헤더 파일에 구조체를 정의한다.
 
 
 ---
-__Pipe 와 Message Queue 의 차이__
+## Pipe 와 Message Queue 의 차이
 + 파이프는 송신 프로세스가 닫으면 수신 측 read()가 0(EOF)을 반환
 + POSIX 메시지 큐는 커널이 관리하는 독립 IPC 객체이므로, 송신자가 닫고 종료되어도 큐는 살아있음
 + mq_unlink(), mq_close()실행 되지 않으면 /dev/mqueue에 메시지큐가 남아 있다
 
 
 ---
-__mq_open() 하기 전에 mq_unlink() 부터 호출하는 이유__
+## mq_open() 하기 전에 mq_unlink() 부터 호출하는 이유
 + 프로세스의 강제 종료 사 메시지는 커널(/dev/mqueue)에 남아 있음
     + 의도치 않은 쓰레기 데이터를 읽을 수 있음
     + O_CREAT => '큐가 없으면 만들고, 있으면 그냥 연다' => 큐의 속성(Attribute) 설정이 무시되고 기존 규격의 큐가 열림
 + 큐가 없을 시 mq_unlink() 호출 시 실패하여 -1을 반환, errno에는 ENOENT(No such file or directory)가 설정됨
 
 ---
-__mq_close()와 mq_unlink()의 차이__
+## mq_close()와 mq_unlink()의 차이
 | 구분 | mq_close(mqd) | mq_unlink(namw) |
 | :---: | :---: | :---: |
 | 대상 | 프로세스의 디스크럽터 | 시스템/커널의 큐 이름 |
@@ -89,14 +89,14 @@ __mq_close()와 mq_unlink()의 차이__
 
 
 --- 
-__Message Queue TimeOut__
+## Message Queue TimeOut
 + Message Queue가 살아 있으고 메시지가 없으면 mq_receive()은 무한 대기 상태 => __timeout__ 설정
 + mq_timedreceive() 및 POSIX 조건 변수, 세마포어 등은 "XX초 뒤" 라는 상대시간(Relative Time)가 아닌 "xxx년 xx월 xx일 xx시 xx분 xx초 까지" 라는 __절대적인 마감 시각(Absolute Beadline)__ 요구
     + [상태 시간 방식] : (2초 대기) --> (2초 카운트다운) --> (종료)
     + [POSIX 절대 시간 방식] : (현재 10:00:00) -->  (목표 10:00:02 설정) --> (10:00:02 시각에 타임아웃 발생)
 + 타임 아웃 메시지 큐 동작 흐름 : 시각 조회 -> 목표 시각 연산 -> mq_timefreceive() 호출
     + 목표 시각 안에 메시지 __수신__ : 프로세스가 깨어나 데어터 버퍼에 메시지 복사 (반환값 : 읽은 바이트 수 >= 0)
-    + 목표 시각 안에 메시지 __미수신__ : 커널 타이머 인터럽트 발생 (반환값: -1 / errno : ETIMEDOUT 설정)
+    + 목표 시각 안에 메시지 __미수신__ : 커널 타이머 인터럽트 발생 (반환값: -1 / errno : ETIMEDOUT 설정)<br>
 &ensp;&ensp;&ensp; 1. clock_gettime(CLOCK_REALTIME, &timeout);<br>
 &ensp;&ensp;&ensp;&ensp; - CLOCK_REALTIME은 리눅스 시스템의 실제 시간(WALL-clock time) 의미<br>
 &ensp;&ensp;&ensp;&ensp; - 함수 호출 시점의 시스템 현재 시각을 초(tv_sec)와 나노초(tv_nesc) 단위로 저장<br>
@@ -106,3 +106,39 @@ __Message Queue TimeOut__
 &ensp;&ensp;&ensp;&ensp; - 요청 프로세스는 커널에 큐 읽기를 요청하며 대기(Sleep/Block)에 돌입<br>
 &ensp;&ensp;&ensp;&ensp; - 메시지가 도착 시 타임아웃 시각에 도달하지 않아도 프로세스가 깨어나 메시지를 반환<br>
 &ensp;&ensp;&ensp;&ensp; - 타임아웃 시각 초과 시 커널이 프로세스를 깨우고 -1을 반환<br>
+
+
+--- 
+## fflush(stdout);
++ __printf와 표준 I/O 버퍼링 메커니즘__ 
+    + 운영체제의 write() 시스템 콜 비용이 많아 C 라이브러리는 사용자 메모리 __임시 저장소__ 에 데이터를 모아둔다.
+    + stdout (표준 출력)의 기본 버퍼링 방식:
+        + Line buffering [터미널에 출력할때]: 개행 문자(\n)를 만나거나 버퍼가 차면(4KB/8KB) 화면에 write한다. 
+        + Full Buffering [파일이나 파이프로 리다이렉션할때]: \n을 만나도 화면에 찍히지 않고, 4KB/8KB 버퍼가 찰 때 화면에 출력
++ __fflush(stdout)__ 호출 시 버퍼 데이터 출력 조건과 상관없이 즉시 버퍼의 데이터를 커널로 밀어(flush)한다.
++ 시스템 프로그래밍이나 IPC, 네트워크 통신에서는 다음 방법 중 1가지는 사용한다.
+    1. __중요한 출력/로그 직후 fflush(stdout);__ 명식하여 리다이렉션/터미널 상관없이 즉시 출력
+    2. __stderr__ (fprintf(stderr, ...) / perror)을 사용하여 unbuffered(버퍼링 없음) 설정
+    3. 프로그램 시작부에 __setvbuf(stdout, NULL, _IONBF, 0);__ 을 입력해 표준 출력을 비버퍼링으로 설정한다.
+
+---
+## Redirection 
++ FD 0번(stdin), 1번(stdout), 2번(stderr)의 대상을 __키보드/화면__ 에서 __파일__ 로 교체
++ __리다이렉션 주요 기호와 사용법__
+	+ __>__ 출력 리다이렉션(덮어쓰기) <br>
+&ensp;&ensp; [$ ls -l > file_list.txt] : ls 결과가 모니터에 끄지 않고 file_list.txt 파일에 저장되고, 기존 내용이 있으면 지워진다.<br>
+	+  __>> 출력 리다이렉션(이어쓰기)__ <br>
+&ensp;&ensp; [$ echo "새로운 로그" >> log.txt] : 기존 파일 내용 뒤에 덧붙여 쓰여짐
+	+  __<__ 입력 리다이렉션__ <br>
+&ensp;&ensp; [$ ./my_program < input.txt] : 프로그램 내부에서 scanf()를 만나면 키보드 입력 대신 input.txt 파일을 읽음
+	+  __2> 또는 2>&1 에러 리다이렉션__ <br>
+&ensp;&ensp; [$ ./my_program 2> error.log] : 일반 출력은  화면에 나오고, perror나 에러 메시지는 error.log에 저장<br>
+&ensp;&ensp; [$ ./my_program > all.log 2>&1] : 출력과 에러를 모두 하나의 파일에 저장하기<br>
+&ensp;&ensp; [$ ./my_program > /dev/null 2>&1] : 출력과 에러를 모두 휴지통(/dev/null)에 버림<br>
++ dup2() 시스템 콜을 통해 리다이렉션 실행 => dup2(fd, 1);
+| 구분 | 기호 | 연결대상 | 메모리 | 예시 |
+| :---: | :---: | :---: | :---: | :---: |
+| 리다이렉션 | >, < | 프로세스 ↔ 파일(디스크) | 디스크 파일을 읽고 씀 | cat file.txt > copy.txt
+| 파이프 | | | 프로세스 ↔ 프로세스 | 커널 메모리 버퍼로 연결 | cat file.txt | grep "abc" |
+
+

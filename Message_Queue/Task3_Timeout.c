@@ -76,6 +76,7 @@ int main()
         for (int i = 0; i < 5; i++)
         {
             printf("[Send] PING\n");
+            // fflush(stdout);
             mq_send(mqd, msg, sizeof(msg), 1);
             sleep(1);
         }
