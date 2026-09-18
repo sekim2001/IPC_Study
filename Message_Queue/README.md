@@ -1,5 +1,5 @@
 ## 메시지 큐 속정 정의 구조체
-```
+```C
 struct mq_attr
 {
   __syscall_slong_t mq_flags;	// 메시지 큐 플래그 (블로킹/비블로킹)
@@ -142,3 +142,80 @@ struct mq_attr
 | 파이프 | | | 프로세스 ↔ 프로세스 | 커널 메모리 버퍼로 연결 | cat file.txt | grep "abc" |
 
 
+---
+## 이벤트 기반(Event-driven) 수신 기법
++ __리눅스/임베디드 이벤트 처리 방식__ : 커널이 프로세스의 CPU 흐름을 강제로 가로채서 인터럽트처럼 핸들러 함수를 실행 시킴
+
+### 1. mq_notify() 기본 개요
+```C
+    #include <mqueue.h>
+    #include <signal.h>
+    
+    int mq_notify(mqd_t mqdes, const struct sigevent *sevp);
+```
++ 메시지 큐가 비어 있다며(Empty) 새 메시지가 도착했을 때, 커널이 프로세스에게 알림(시그널 등)을 비동기적으로 보내도록 등록
++ 인자 
+    + __mqdes__ : 알림을 등록할 메시지 큐 디스크럽터
+    + __sevp__ : 알림 방식을 지정하는 구조체 포인터 (등록 해제 시에는 NULL)
++ 반환값 : 성공사 0, 실패시 -1
++ __특징__
+    + One-shot (1회 성)
+        + 커널은 시그널을 보내면 등록을 이벤트 자동으로 파기함
+        + 다음 메시지 또는 비동기로 메시지를 처리하려면 __재등록(Re-arming)__ 해야 함.
+    + Empty -> Non-empty 순간에만 발생
+        + 큐에 메시지가 1개 이상 남아있는 상태에서 메시지가 들어와도 커널은 시그널을 보내지 않는다.
+
+### 2. struct sigevent 설정
+```C
+struct sigevent {
+    int   sigev_notify;              /* 알림 방식 (Notification type) */
+    int   sigev_signo;               /* 시그널 번호 (Signal number) */
+    union sigval sigev_value;        /* 이벤트와 함께 전달되는 데이터 */
+    void  (*sigev_notify_function)(union sigval); /* 쓰레드 알림 함수 */
+    pthread_attr_t *sigev_notify_attributes; /* 쓰레드 속성 */
+    pid_t sigev_notify_thread_id;    /* (Linux 전용) 시그널을 받을 특정 쓰레드 ID */
+};
+
+union sigval {
+    int   sival_int;   /* 정수값 */
+    void *sival_ptr;   /* 포인터값 */
+};
+```
++ sigev_notify 주요 알림 방식
+    + SIGEV_NONE : 아무런 알림도 하지 않는다 (NULL 알림)
+    + SIGEV_SIGNAL : sigev_signo에 지정된 시그널을 프로세스나 쓰레드로 전달
+    + SIGEV_THREAD : 새로운 쓰레드를 생성하여 sigev_notify_function() 함수 실행
+    + SIGEV_THREAD_ID : 타이머 등에서 특정 쓰레드 ID(sigev_notify_thread_id)로 직접 시그널을 전달
+
+
+```C
+    #include <signal.h>
+    #include <mqueue.h>
+    #include <string.h>
+    
+    struct sigevent sev;
+    memset(&sev, 0, sizeof(sev));
+    
+    sev.sigev_notify = SIGEV_SIGNAL;  // 알림 방식으로 '시그널' 선택
+    sev.sigev_signo = SIGUSR1;        // 발생시킬 시그널 번호 (SIGUSR1)
+```
++ memset() 설정 이유  
+    + C++에서는 객체나 구조체를 만들때 생서자(Constructor)가 필드를 자동으로 0 또는 기본값으로 초기화 해 준다. 
+    + C에서는 로컬 변수(스택)를 선언하면 메모리에 이전에 쓰던 Garbage data가 그대로 남아 있음
+    + __struct sigevent sev;__ => 스택에 할장되어 내부에 쓰레기 값이 가득참(pad 배열과 union 공간)
+    + mq_notify() 호출 시 커널은 copy_from_user 함수를 통해 64바이트 데이터(sigevent 사이즈)를 커널 메모리에 복사
+    + __커널(시스템 콜)로 넘겨주는 C 구조체는 무조건 memset으로 깨끗이 0으로 밀어준다.__
+
+### 3. 큐를 비블로킹(O_NONBLOCK)으로 열고 모두 비우기(Drain)
++ 큐가 (Empty → Non-empty)인 순간에만 시그널을 보내기 때문에 시그널 발생시 모든 메시지를 남김없이(errno == EAGAIN) 읽어야 함 
++ __while() 루프로 mq_receive() 호출__ 하여 큐를 비울 수 있음
+    + __블로킹 모드(0)__ : 큐가 비는 순간 mq_receive()는 다음 메시지가 올 때까지 대기해 루프문에서 벗어남
+    + __O_NONBLOCK 모드__ : 큐가 비는 순간 -1를 반환하며 errno를 EAGAIN으로 세팅하며 루프를 끝낸다
+
+### 4. 메시지 큐 mq_notify() 전체 설정 절차 및 동작 흐름
+1. mq_open()시 O_NONBLOCK 설정 
+2. signal(SIGUSR1, handler); -> 커널이 시그널을 줬을 떄 실행할 함수 지정
+3. memset()으로 sigevent 구조체를 초기화 하고, 설정한다
+4. mq_notify()로 시그널을 커널에 등록한다.
+5. 메인 작업 수행
+6. 이벤트 발생 시 핸들러 로직 수행
