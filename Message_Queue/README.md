@@ -1,4 +1,4 @@
-## 메시지 큐 속정 정의 구조체
+## 1. 메시지 큐 속정 정의 구조체
 ```C
 struct mq_attr
 {
@@ -9,8 +9,9 @@ struct mq_attr
   __syscall_slong_t __pad[4];
 };
 ```
-+ 메세지 큐 플래그에 따른 동작 차이
-| 상황 | 0 (블로킹 모드) | O_NONBLOCK (비블로킹)|
++ 메세지 큐 플래그에 따른 동작 차이<br>
+
+| 상황 | 0(블로킹 모드) | O_NONBLOCK(비블로킹) |
 | :---: | :---: | :---: |
 | 큐가 비었을때 mq_receive() 호출 | 메시지가 들어올 때까지 대기 | 즉시 반환 (실패 처리), errno에 EAGAIN 설정 |
 | 큐가 꽉 찼을때 mq_send() 호출 | 비자리가 생길 때까지 대기 | 즉시 반환 (실패 처리), errno에 EAGAIN 설정 |
@@ -26,7 +27,7 @@ struct mq_attr
     + __사용__ : 백그라운드 로직을 계속 수행해야 할 때 (epoll, select 또는 mq_notify 와 함께 사용)
 
 ---
-## mq_open() 함수 인자
+## 2. mq_open() 함수 인자
 + __mqd_t mq_open(const char *name, int oflag);__ // 큐를 기존에 생성된 것을 열기만 할 때
 + __mqd_t mq_open(const char *name, int oflag, mode_t mode, struct mq_attr *attr);__ // O_CREAT 플래그를 넣어 새로 생성할 때 (가변 인자 형태)
 
@@ -37,7 +38,7 @@ struct mq_attr
         + O_RDWR: 송수신 모두 가능
     + 생성 및 제어 플래그 (선택 조합):
         + O_CREAT: 큐가 없으면 새로 생성합니다. (이 플래그를 쓰면 뒤의 3, 4번째 인자인 mode, attr가 필요)
-        + O_EXCL: O_CREAT와 함께 사용 시, **이미 같은 이름의 큐가 존재하면 실패(EEXIST)**를 반환합니다. (중복 생성 방지 및 원자적 생성 보장)
+        + O_EXCL: O_CREAT와 함께 사용 시, __이미 같은 이름의 큐가 존재하면 실패(EEXIST)__ 를 반환합니다. (중복 생성 방지 및 원자적 생성 보장)
         + O_NONBLOCK: 비블로킹(Non-blocking) 모드로 엽니다. 큐가 꽉 찼을 때 mq_send를 하거나 비었을 때 mq_receive를 하면 멈추지 않고 즉시 -1과 함께 errno = EAGAIN을 반환합니다.
 
 + mode_t mode (접근 권한) - O_CREAT 지정 시 필수
@@ -50,7 +51,7 @@ struct mq_attr
 
 
 ---
-## Message Queue 설계 규칙
+## 3. Message Queue 설계 규칙
 #### 1. 메시지 구조체 안에 포인터 포함 불가
 + IPC는 서로 다른 가상 메모리 주소 공간(Virtual Address Space)을 가진 프로세스 간 통신
 + 구조체에 포인트 사용 시 Segmentation Fault 발생 => 고정 크기 버퍼 사용
@@ -65,21 +66,21 @@ struct mq_attr
 
 
 ---
-## Pipe 와 Message Queue 의 차이
+## 4. Pipe 와 Message Queue 의 차이
 + 파이프는 송신 프로세스가 닫으면 수신 측 read()가 0(EOF)을 반환
 + POSIX 메시지 큐는 커널이 관리하는 독립 IPC 객체이므로, 송신자가 닫고 종료되어도 큐는 살아있음
 + mq_unlink(), mq_close()실행 되지 않으면 /dev/mqueue에 메시지큐가 남아 있다
 
 
 ---
-## mq_open() 하기 전에 mq_unlink() 부터 호출하는 이유
+## 5. mq_open() 하기 전에 mq_unlink() 부터 호출하는 이유
 + 프로세스의 강제 종료 사 메시지는 커널(/dev/mqueue)에 남아 있음
     + 의도치 않은 쓰레기 데이터를 읽을 수 있음
     + O_CREAT => '큐가 없으면 만들고, 있으면 그냥 연다' => 큐의 속성(Attribute) 설정이 무시되고 기존 규격의 큐가 열림
 + 큐가 없을 시 mq_unlink() 호출 시 실패하여 -1을 반환, errno에는 ENOENT(No such file or directory)가 설정됨
 
 ---
-## mq_close()와 mq_unlink()의 차이
+## 6. mq_close()와 mq_unlink()의 차이
 | 구분 | mq_close(mqd) | mq_unlink(namw) |
 | :---: | :---: | :---: |
 | 대상 | 프로세스의 디스크럽터 | 시스템/커널의 큐 이름 |
@@ -89,7 +90,7 @@ struct mq_attr
 
 
 --- 
-## Message Queue TimeOut
+## 7. Message Queue TimeOut
 + Message Queue가 살아 있으고 메시지가 없으면 mq_receive()은 무한 대기 상태 => __timeout__ 설정
 + mq_timedreceive() 및 POSIX 조건 변수, 세마포어 등은 "XX초 뒤" 라는 상대시간(Relative Time)가 아닌 "xxx년 xx월 xx일 xx시 xx분 xx초 까지" 라는 __절대적인 마감 시각(Absolute Beadline)__ 요구
     + [상태 시간 방식] : (2초 대기) --> (2초 카운트다운) --> (종료)
@@ -109,7 +110,7 @@ struct mq_attr
 
 
 --- 
-## fflush(stdout);
+## 8. fflush(stdout);
 + __printf와 표준 I/O 버퍼링 메커니즘__ 
     + 운영체제의 write() 시스템 콜 비용이 많아 C 라이브러리는 사용자 메모리 __임시 저장소__ 에 데이터를 모아둔다.
     + stdout (표준 출력)의 기본 버퍼링 방식:
@@ -122,7 +123,7 @@ struct mq_attr
     3. 프로그램 시작부에 __setvbuf(stdout, NULL, _IONBF, 0);__ 을 입력해 표준 출력을 비버퍼링으로 설정한다.
 
 ---
-## Redirection 
+## 9. Redirection 
 + FD 0번(stdin), 1번(stdout), 2번(stderr)의 대상을 __키보드/화면__ 에서 __파일__ 로 교체
 + __리다이렉션 주요 기호와 사용법__
 	+ __>__ 출력 리다이렉션(덮어쓰기) <br>
@@ -136,14 +137,15 @@ struct mq_attr
 &ensp;&ensp; [$ ./my_program > all.log 2>&1] : 출력과 에러를 모두 하나의 파일에 저장하기<br>
 &ensp;&ensp; [$ ./my_program > /dev/null 2>&1] : 출력과 에러를 모두 휴지통(/dev/null)에 버림<br>
 + dup2() 시스템 콜을 통해 리다이렉션 실행 => dup2(fd, 1);
+  
 | 구분 | 기호 | 연결대상 | 메모리 | 예시 |
 | :---: | :---: | :---: | :---: | :---: |
 | 리다이렉션 | >, < | 프로세스 ↔ 파일(디스크) | 디스크 파일을 읽고 씀 | cat file.txt > copy.txt
-| 파이프 | | | 프로세스 ↔ 프로세스 | 커널 메모리 버퍼로 연결 | cat file.txt | grep "abc" |
+| 파이프 | \| | 프로세스 ↔ 프로세스 | 커널 메모리 버퍼로 연결 | cat file.txt \| grep "abc" |
 
 
 ---
-## 이벤트 기반(Event-driven) 수신 기법
+## 10. 이벤트 기반(Event-driven) 수신 기법
 + __리눅스/임베디드 이벤트 처리 방식__ : 커널이 프로세스의 CPU 흐름을 강제로 가로채서 인터럽트처럼 핸들러 함수를 실행 시킴
 
 ### 1. mq_notify() 기본 개요
