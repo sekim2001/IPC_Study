@@ -14,8 +14,9 @@
 // 공유 메모리에 배치할 구조체 정의
 // 프로세스 간 동기화를 위해 구조체 내부에 unnamed POSIX semaphore를 포함
 typedef struct {
-    sem_t sem_sync;                              // 프로세스 간 동기화 세마포어
+    sem_t sem_sync;                              // 프로세스 간 동기화 무명 세마포어
     char high_bw_data[SHM_SIZE - sizeof(sem_t)]; // 실제 데이터 저장 영역
+                                                 // 복사 오버헤드 없아 직접 읽고 쓰는 데이터 영역
 } shm_data_t;
 
 int main()
@@ -26,7 +27,7 @@ int main()
     shm_unlink(SHM_NAME);
 
     // 1. POSIX 공유 메모리 객체 생성
-    int shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+    int shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);    
     if (shm_fd == -1) {
         perror("shm_open");
         exit(EXIT_FAILURE);
